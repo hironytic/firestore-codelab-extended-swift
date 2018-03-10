@@ -48,11 +48,19 @@ class RestaurantsTableViewController: UIViewController, UITableViewDelegate {
   }
 
   private func dataSourceForQuery(_ query: Query) -> RestaurantTableViewDataSource {
-    fatalError("Unimplemented")
+    return RestaurantTableViewDataSource(query: query) { [unowned self] (changes) in
+      if self.dataSource.count > 0 {
+        self.tableView.backgroundView = nil
+      } else {
+        self.tableView.backgroundView = self.backgroundView
+      }
+      
+      self.tableView.reloadData()
+    }
   }
 
   private lazy var baseQuery: Query = {
-    fatalError("Unimplemented")
+    return Firestore.firestore().collection("restaurants").limit(to: 50)
   }()
 
   lazy private var filters: (navigationController: UINavigationController,
@@ -70,6 +78,7 @@ class RestaurantsTableViewController: UIViewController, UITableViewDelegate {
     stackViewHeightConstraint.constant = 0
     activeFiltersStackView.isHidden = true
     tableView.delegate = self
+    tableView.dataSource = dataSource
 
     self.navigationController?.navigationBar.barStyle = .black
 
@@ -81,10 +90,12 @@ class RestaurantsTableViewController: UIViewController, UITableViewDelegate {
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     self.setNeedsStatusBarAppearanceUpdate()
+    dataSource.startUpdates()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    dataSource.stopUpdates()
   }
 
   deinit {
@@ -213,7 +224,12 @@ class RestaurantTableViewCell: UITableViewCell {
   @IBOutlet private var priceLabel: UILabel!
 
   func populate(restaurant: Restaurant) {
-
+    nameLabel.text = restaurant.name
+    cityLabel.text = restaurant.city
+    categoryLabel.text = restaurant.category
+    starsView.rating = Int(restaurant.averageRating.rounded())
+    priceLabel.text = Utils.priceString(from: restaurant.price)
+    thumbnailView.sd_setImage(with: restaurant.photoURL)
   }
 
   override func prepareForReuse() {
