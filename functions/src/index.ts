@@ -50,24 +50,29 @@ export const computeAverageReview = functions.firestore
 
   async function updateAverage(db: Firestore, restaurantID: string, newRating: number, prev: boolean) {
     const updateDB = db.collection('restaurants').doc(restaurantID);
-    const restaurantDoc = await updateDB.get();
-    if (!restaurantDoc.exists) {
-        console.log("Document does not exist!");
+    const transactionResult = await db.runTransaction(t => {
+      return (async () => {
+        const restaurantDoc = await t.get(updateDB);
+        if (!restaurantDoc.exists) {
+          console.log("Document does not exist!");
+          return null;
+        }
+        const oldRating = restaurantDoc.data().averageRating;
+        const oldNumReviews = restaurantDoc.data().reviewCount;
+        let newNumReviews = oldNumReviews+1;
+        let newAvgRating = ((oldRating*oldNumReviews)+newRating)/newNumReviews;
+        // no need to increase review numbers if not a new review
+        // subtract the different made by the review
+        if (prev) {
+          newNumReviews = oldNumReviews;
+          newAvgRating = ((oldRating*oldNumReviews)-newRating)/oldNumReviews;
+        }
+        await t.update(updateDB, { averageRating: newAvgRating, reviewCount: newNumReviews });
+        console.log("average updated");
         return null;
-    }
-    const oldRating = restaurantDoc.data().averageRating;
-    const oldNumReviews = restaurantDoc.data().reviewCount;
-    let newNumReviews = oldNumReviews+1;
-    let newAvgRating = ((oldRating*oldNumReviews)+newRating)/newNumReviews;
-    // no need to increase review numbers if not a new review
-    // subtract the different made by the review
-    if (prev) {
-      newNumReviews = oldNumReviews;
-      newAvgRating = ((oldRating*oldNumReviews)-newRating)/oldNumReviews;
-    }
-    await updateDB.update({averageRating: newAvgRating, reviewCount: newNumReviews});
-    console.log("average updated");
-    return null;  
+      })();
+    })
+    return transactionResult;
   }
 
 // TODO(DEVELOPER): Write the updateRest Function here.
